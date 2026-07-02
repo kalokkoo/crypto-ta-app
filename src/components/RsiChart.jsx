@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
+import { createChart, ColorType, LineSeries } from 'lightweight-charts';
 import { rsi } from '../lib/indicators';
 
 export default function RsiChart({ candles }) {
@@ -18,20 +18,9 @@ export default function RsiChart({ candles }) {
       handleScroll: false,
       handleScale: false,
     });
-
-    const line = chart.addLineSeries({
-      color: '#9F7AEA',
-      lineWidth: 1.5,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
-
-    chart.addLineSeries({ color: 'rgba(252,129,129,0.4)', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false })
-      .setData([]);
-
+    const line = chart.addSeries(LineSeries, { color: '#9F7AEA', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true });
     chartRef.current = chart;
     lineRef.current = line;
-
     return () => chart.remove();
   }, []);
 
@@ -39,9 +28,7 @@ export default function RsiChart({ candles }) {
     if (!candles || candles.length === 0 || !lineRef.current) return;
     const closes = candles.map((c) => c.close);
     const rsiArr = rsi(closes, 14);
-    lineRef.current.setData(
-      candles.map((c, i) => ({ time: c.time, value: rsiArr[i] })).filter((d) => d.value !== null)
-    );
+    lineRef.current.setData(candles.map((c, i) => ({ time: c.time, value: rsiArr[i] })).filter((d) => d.value !== null));
     chartRef.current?.timeScale().fitContent();
   }, [candles]);
 

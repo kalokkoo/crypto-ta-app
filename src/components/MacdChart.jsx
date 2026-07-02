@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
+import { createChart, ColorType, LineSeries, HistogramSeries } from 'lightweight-charts';
 import { macd } from '../lib/indicators';
 
 export default function MacdChart({ candles }) {
@@ -18,14 +18,11 @@ export default function MacdChart({ candles }) {
       handleScroll: false,
       handleScale: false,
     });
-
-    const histSeries = chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
-    const macdSeries = chart.addLineSeries({ color: '#3B82F6', lineWidth: 1.2, priceLineVisible: false, lastValueVisible: false });
-    const signalSeries = chart.addLineSeries({ color: '#FC8181', lineWidth: 1.2, priceLineVisible: false, lastValueVisible: false });
-
+    const histSeries = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false });
+    const macdSeries = chart.addSeries(LineSeries, { color: '#3B82F6', lineWidth: 1.2, priceLineVisible: false, lastValueVisible: false });
+    const signalSeries = chart.addSeries(LineSeries, { color: '#FC8181', lineWidth: 1.2, priceLineVisible: false, lastValueVisible: false });
     chartRef.current = chart;
     seriesRef.current = { histSeries, macdSeries, signalSeries };
-
     return () => chart.remove();
   }, []);
 
@@ -34,18 +31,11 @@ export default function MacdChart({ candles }) {
     const { histSeries, macdSeries, signalSeries } = seriesRef.current;
     const closes = candles.map((c) => c.close);
     const { macdLine, signalLine, histogram } = macd(closes);
-
     histSeries.setData(
-      candles
-        .map((c, i) => ({ time: c.time, value: histogram[i], color: histogram[i] >= 0 ? 'rgba(72,187,120,0.7)' : 'rgba(252,129,129,0.7)' }))
-        .filter((d) => d.value !== null)
+      candles.map((c, i) => ({ time: c.time, value: histogram[i], color: histogram[i] >= 0 ? 'rgba(72,187,120,0.7)' : 'rgba(252,129,129,0.7)' })).filter((d) => d.value !== null)
     );
-    macdSeries.setData(
-      candles.map((c, i) => ({ time: c.time, value: macdLine[i] })).filter((d) => d.value !== null)
-    );
-    signalSeries.setData(
-      candles.map((c, i) => ({ time: c.time, value: signalLine[i] })).filter((d) => d.value !== null)
-    );
+    macdSeries.setData(candles.map((c, i) => ({ time: c.time, value: macdLine[i] })).filter((d) => d.value !== null));
+    signalSeries.setData(candles.map((c, i) => ({ time: c.time, value: signalLine[i] })).filter((d) => d.value !== null));
     chartRef.current?.timeScale().fitContent();
   }, [candles]);
 
