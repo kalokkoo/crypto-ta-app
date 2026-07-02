@@ -1,8 +1,8 @@
-// 純規則邏輯技術分析引擎（完全免費，無需 API）
-// 根據各技術指標數值自動產生繁體中文分析報告
-
 function fmt(v, d = 2) {
-  return v !== null && v !== undefined ? v.toFixed(d) : 'N/A';
+  if (v === null || v === undefined) return 'N/A';
+  if (Math.abs(v) < 0.0001) return v.toFixed(8);
+  if (Math.abs(v) < 0.01) return v.toFixed(6);
+  return v.toFixed(d);
 }
 
 function pct(v, ref) {
@@ -10,224 +10,186 @@ function pct(v, ref) {
   return ((v - ref) / ref) * 100;
 }
 
-// 趨勢強度描述
-function trendStrength(bullCount, bearCount, total) {
-  const score = (bullCount - bearCount) / total;
-  if (score > 0.5) return '強勢多頭';
-  if (score > 0.2) return '偏多';
-  if (score < -0.5) return '強勢空頭';
-  if (score < -0.2) return '偏空';
-  return '盤整中性';
-}
-
-// RSI 解讀
 function interpretRSI(rsi) {
   if (rsi === null) return null;
-  if (rsi >= 80) return { text: `RSI 高達 ${fmt(rsi, 1)}，進入嚴重超買區，短期拉回風險高，建議避免追多。`, signal: 'bear' };
-  if (rsi >= 70) return { text: `RSI ${fmt(rsi, 1)} 進入超買區間，動能仍強但需留意拉回訊號，可考慮縮減部位。`, signal: 'bear' };
-  if (rsi >= 60) return { text: `RSI ${fmt(rsi, 1)} 位於強勢區間（60-70），多頭動能充足，趨勢健康。`, signal: 'bull' };
-  if (rsi >= 50) return { text: `RSI ${fmt(rsi, 1)} 站穩 50 以上，多空分界偏多，但動能尚未明顯加速。`, signal: 'bull' };
-  if (rsi >= 40) return { text: `RSI ${fmt(rsi, 1)} 位於 40-50 之間，偏空但尚未破底，觀望為主。`, signal: 'bear' };
-  if (rsi >= 30) return { text: `RSI ${fmt(rsi, 1)} 接近超賣區，空頭動能持續，但可開始留意反彈機會。`, signal: 'bear' };
-  if (rsi >= 20) return { text: `RSI ${fmt(rsi, 1)} 進入超賣區，賣壓沉重，短期有反彈可能，但趨勢仍偏空。`, signal: 'bull' };
-  return { text: `RSI ${fmt(rsi, 1)} 嚴重超賣，市場恐慌情緒極高，歷史上這是中長期買點區域，但需等待止跌訊號確認。`, signal: 'bull' };
+  if (rsi >= 80) return { level: '嚴重超買', color: '🔴', detail: `RSI ${fmt(rsi,1)} 超過 80，市場過熱明顯，歷史上此區間常伴隨急跌修正，強烈建議減倉或等待回調再介入。`, signal: 'bear' };
+  if (rsi >= 70) return { level: '超買區', color: '🟠', detail: `RSI ${fmt(rsi,1)} 進入超買（70-80），多頭動能仍在但上漲空間有限，注意量能是否同步放大，無量上漲需謹慎。`, signal: 'bear' };
+  if (rsi >= 60) return { level: '強勢多頭', color: '🟢', detail: `RSI ${fmt(rsi,1)} 落在 60-70 強勢區，趨勢健康，多頭動能充足，可持倉或逢低加碼。`, signal: 'bull' };
+  if (rsi >= 50) return { level: '偏多', color: '🟡', detail: `RSI ${fmt(rsi,1)} 站上 50 中線，多空力道偏向買方，但力度尚未明顯，等待進一步確認。`, signal: 'bull' };
+  if (rsi >= 40) return { level: '偏空', color: '🟡', detail: `RSI ${fmt(rsi,1)} 落在 40-50，空方略佔優勢，短線觀望為主，不宜追多。`, signal: 'bear' };
+  if (rsi >= 30) return { level: '弱勢空頭', color: '🟠', detail: `RSI ${fmt(rsi,1)} 接近超賣邊緣（30-40），空頭持續施壓，可開始留意止跌訊號，但未確認前勿抄底。`, signal: 'bear' };
+  if (rsi >= 20) return { level: '超賣區', color: '🔵', detail: `RSI ${fmt(rsi,1)} 進入超賣（20-30），市場悲觀情緒過重，短線反彈機率上升，可分批布局但需設好止損。`, signal: 'bull' };
+  return { level: '嚴重超賣', color: '🔵', detail: `RSI ${fmt(rsi,1)} 低於 20，極度超賣，市場恐慌至頂，歷史上為中長線重要買點，但需等K線出現止跌訊號（如長下影線、吞噬K）再行動。`, signal: 'bull' };
 }
 
-// MACD 解讀
-function interpretMACD(macd, signal, histogram) {
+function interpretMACD(macd, signal, hist) {
   if (macd === null || signal === null) return null;
-  const hist = histogram ?? (macd - signal);
-  const crossType = macd > signal ? '多頭' : '空頭';
-  const histDesc = hist > 0 ? '柱狀體翻紅、動能擴張' : '柱狀體翻綠、動能收縮';
-
-  if (macd > signal && hist > 0) {
-    return { text: `MACD 黃金交叉確立，${histDesc}，${crossType}趨勢延續中。MACD 值 ${fmt(macd)} 高於訊號線 ${fmt(signal)}，差距 ${fmt(Math.abs(hist))}，多頭動能強勁。`, signal: 'bull' };
-  }
-  if (macd > signal && hist <= 0) {
-    return { text: `MACD 處於多頭格局但柱狀體開始收縮，動能出現疲態，留意可能的回檔整理。MACD ${fmt(macd)} 仍高於訊號線 ${fmt(signal)}。`, signal: 'neutral' };
-  }
-  if (macd <= signal && hist < 0) {
-    return { text: `MACD 死亡交叉確立，${histDesc}，${crossType}趨勢延續中。MACD 值 ${fmt(macd)} 低於訊號線 ${fmt(signal)}，空頭動能持續施壓。`, signal: 'bear' };
-  }
-  return { text: `MACD 處於空頭格局但柱狀體開始收縮，空頭動能減弱，留意可能的反彈機會。MACD ${fmt(macd)}，訊號線 ${fmt(signal)}。`, signal: 'neutral' };
+  const diff = macd - signal;
+  if (macd > 0 && signal > 0 && diff > 0) return { level: '強勢多頭', detail: `MACD（${fmt(macd)}）與訊號線（${fmt(signal)}）均在零軸上方，且 MACD 高於訊號線，柱狀體翻紅擴張，為標準強勢多頭格局，趨勢明確向上。` };
+  if (macd > 0 && diff > 0) return { level: '多頭啟動', detail: `MACD（${fmt(macd)}）黃金交叉，位於零軸上方，多頭趨勢成形。柱狀體差值 ${fmt(diff)}，動能持續擴張中。` };
+  if (diff > 0 && macd < 0) return { level: '底部反轉', detail: `MACD 黃金交叉（${fmt(macd)} 上穿 ${fmt(signal)}），但仍在零軸下方，為底部反轉早期訊號，需等待 MACD 突破零軸確認多頭。` };
+  if (macd < 0 && signal < 0 && diff < 0) return { level: '強勢空頭', detail: `MACD（${fmt(macd)}）與訊號線（${fmt(signal)}）均在零軸下方，且 MACD 低於訊號線，柱狀體翻綠擴張，強勢空頭格局，趨勢明確向下。` };
+  if (diff < 0 && macd > 0) return { level: '頭部反轉', detail: `MACD 死亡交叉（${fmt(macd)} 下穿 ${fmt(signal)}），仍在零軸上方，為頭部反轉早期警示，需警惕趨勢轉空可能。` };
+  return { level: '空頭延續', detail: `MACD（${fmt(macd)}）低於訊號線（${fmt(signal)}），空頭動能持續，柱狀體差值 ${fmt(diff)}。` };
 }
 
-// 布林帶解讀
 function interpretBB(price, upper, mid, lower) {
   if (!upper || !lower || !mid) return null;
   const range = upper - lower;
   const pos = (price - lower) / range;
-  const bandwidth = (range / mid) * 100;
+  const bw = (range / mid) * 100;
+  const bwDesc = bw < 2 ? `【極度收窄 ${fmt(bw,1)}%】大行情前兆，突破方向決定後市` :
+    bw < 5 ? `【偏窄 ${fmt(bw,1)}%】醞釀突破，建議等待方向確認` :
+    bw > 20 ? `【極度擴張 ${fmt(bw,1)}%】波動率極高，趨勢行情加速段` :
+    bw > 12 ? `【擴張中 ${fmt(bw,1)}%】波動率高，趨勢強勁` : `【正常 ${fmt(bw,1)}%】市場波動適中`;
+  
+  const posDesc = pos > 0.9 ? `突破上軌（${fmt(upper)}），強勢但需防過熱回調` :
+    pos > 0.7 ? `靠近上軌（${fmt(upper)}），偏強，上漲空間收窄` :
+    pos > 0.5 ? `中軌（${fmt(mid)}）上方，偏多格局` :
+    pos > 0.3 ? `中軌（${fmt(mid)}）下方，偏空格局` :
+    pos > 0.1 ? `靠近下軌（${fmt(lower)}），超跌留意反彈` :
+    `跌破下軌（${fmt(lower)}），強勢下跌但反彈機率升高`;
 
-  let posDesc, signal;
-  if (pos > 0.95) { posDesc = `突破上軌（${fmt(upper)}），強勢行情延續，但短線過熱需留意拉回`; signal = 'bear'; }
-  else if (pos > 0.8) { posDesc = `貼近上軌（${fmt(upper)}），多頭強勢，但上方空間有限`; signal = 'neutral'; }
-  else if (pos > 0.5) { posDesc = `位於中軌（${fmt(mid)}）上方，偏多格局`; signal = 'bull'; }
-  else if (pos > 0.2) { posDesc = `位於中軌（${fmt(mid)}）下方，偏空格局`; signal = 'bear'; }
-  else if (pos > 0.05) { posDesc = `貼近下軌（${fmt(lower)}），空頭弱勢，留意反彈`; signal = 'neutral'; }
-  else { posDesc = `跌破下軌（${fmt(lower)}），空頭強勢但嚴重超跌，反彈機率高`; signal = 'bull'; }
-
-  const bwDesc = bandwidth < 3 ? '布林帶極度收窄，大行情即將展開，方向待確認。' :
-    bandwidth < 6 ? '布林帶偏窄，波動率低，醞釀突破。' :
-    bandwidth > 15 ? '布林帶極度擴張，波動率極高，行情進入加速段。' :
-    bandwidth > 10 ? '布林帶擴張，波動率高，趨勢行情中。' : '布林帶寬度正常。';
-
-  return { text: `當前價格 ${posDesc}。${bwDesc}`, signal };
+  return { bwDesc, posDesc, pos, bw };
 }
 
-// KDJ 解讀
 function interpretKDJ(k, d, j) {
   if (k === null || d === null) return null;
-  let desc = '';
-  if (k > 80 && d > 80) desc = `KDJ 處於超買區（K:${fmt(k, 1)} D:${fmt(d, 1)}），短線拉回風險高。`;
-  else if (k < 20 && d < 20) desc = `KDJ 處於超賣區（K:${fmt(k, 1)} D:${fmt(d, 1)}），反彈機率較高。`;
-  else if (k > d) desc = `KDJ 呈多頭排列（K:${fmt(k, 1)} > D:${fmt(d, 1)}），短線動能偏多。`;
-  else desc = `KDJ 呈空頭排列（K:${fmt(k, 1)} < D:${fmt(d, 1)}），短線動能偏空。`;
-
-  if (j !== null) {
-    if (j > 100) desc += ` J 值 ${fmt(j, 1)} 超過 100，超買警示。`;
-    else if (j < 0) desc += ` J 值 ${fmt(j, 1)} 低於 0，超賣警示。`;
-  }
-
-  const signal = k > d ? 'bull' : 'bear';
-  return { text: desc, signal };
+  const cross = k > d ? 'K 上穿 D（偏多）' : 'K 下穿 D（偏空）';
+  const zone = k > 80 ? '超買區（>80），短線拉回風險' : k < 20 ? '超賣區（<20），反彈機率高' : '中性區間（20-80）';
+  const jWarn = j !== null ? (j > 100 ? `  ⚠️ J 值 ${fmt(j,1)} 超過 100，超買極值` : j < 0 ? `  ⚠️ J 值 ${fmt(j,1)} 低於 0，超賣極值` : '') : '';
+  return `K:${fmt(k,1)}  D:${fmt(d,1)}  J:${j !== null ? fmt(j,1) : 'N/A'}\n  ${cross}，位於${zone}${jWarn}`;
 }
 
-// 均線排列解讀
 function interpretMA(price, ma20, ma50) {
   if (!ma20 || !ma50) return null;
   const p20 = pct(price, ma20);
   const p50 = pct(price, ma50);
-
-  if (price > ma20 && ma20 > ma50) {
-    return {
-      text: `多頭排列確立：價格（${fmt(price)}）> MA20（${fmt(ma20)}）> MA50（${fmt(ma50)}），為標準多頭趨勢結構。價格高於 MA20 ${fmt(Math.abs(p20), 2)}%，高於 MA50 ${fmt(Math.abs(p50), 2)}%。`,
-      signal: 'bull'
-    };
-  }
-  if (price < ma20 && ma20 < ma50) {
-    return {
-      text: `空頭排列確立：價格（${fmt(price)}）< MA20（${fmt(ma20)}）< MA50（${fmt(ma50)}），為標準空頭趨勢結構。價格低於 MA20 ${fmt(Math.abs(p20), 2)}%，低於 MA50 ${fmt(Math.abs(p50), 2)}%。`,
-      signal: 'bear'
-    };
-  }
-  if (price > ma20 && ma20 < ma50) {
-    return {
-      text: `價格回升至 MA20（${fmt(ma20)}）上方，但 MA20 仍低於 MA50（${fmt(ma50)}），均線尚未形成黃金交叉，需進一步確認反轉。`,
-      signal: 'neutral'
-    };
-  }
-  return {
-    text: `價格跌至 MA20（${fmt(ma20)}）下方，但 MA20 仍高於 MA50（${fmt(ma50)}），均線尚未死亡交叉，可能是短期回調。`,
-    signal: 'neutral'
-  };
+  if (price > ma20 && ma20 > ma50)
+    return { trend: '多頭排列 ✅', detail: `價格 > MA20（${fmt(ma20)}）> MA50（${fmt(ma50)}），標準多頭排列。價格高於 MA20 ${fmt(Math.abs(p20),2)}%，高於 MA50 ${fmt(Math.abs(p50),2)}%，趨勢結構健康。` };
+  if (price < ma20 && ma20 < ma50)
+    return { trend: '空頭排列 ❌', detail: `價格 < MA20（${fmt(ma20)}）< MA50（${fmt(ma50)}），標準空頭排列。價格低於 MA20 ${fmt(Math.abs(p20),2)}%，低於 MA50 ${fmt(Math.abs(p50),2)}%，趨勢結構偏空。` };
+  if (price > ma20 && ma20 < ma50)
+    return { trend: '反彈確認中 ⚠️', detail: `價格回升至 MA20（${fmt(ma20)}）上方，但 MA20 仍低於 MA50（${fmt(ma50)}），尚未形成黃金交叉，需進一步確認是否真正反轉。` };
+  return { trend: '回調整理中 ⚠️', detail: `價格跌至 MA20（${fmt(ma20)}）下方，但 MA20 仍高於 MA50（${fmt(ma50)}），MA 尚未死叉，可能是短期回調而非趨勢反轉。` };
 }
 
-// 支撐壓力位描述
-function describeSR(price, sr, bb) {
-  if (!sr) return '';
-  const lines = [];
-
-  lines.push(`【壓力位】`);
-  lines.push(`  第一壓力：${fmt(sr.resistance[0])}（布林上軌附近）— 突破此位可能加速上攻`);
-  lines.push(`  第二壓力：${fmt(sr.resistance[1])}（近期高點區域）— 強力壓力，需大量能配合`);
-
-  lines.push(`【支撐位】`);
-  lines.push(`  第一支撐：${fmt(sr.support[0])}（布林中軌 / MA20 附近）— 多頭防守關鍵`);
-  lines.push(`  第二支撐：${fmt(sr.support[1])}（布林下軌附近）— 若跌破轉為強空`);
-
-  const distToR1 = sr.resistance[0] ? ((sr.resistance[0] - price) / price * 100) : null;
-  const distToS1 = sr.support[0] ? ((price - sr.support[0]) / price * 100) : null;
-
-  if (distToR1 !== null) lines.push(`  距第一壓力：+${fmt(distToR1, 2)}%`);
-  if (distToS1 !== null) lines.push(`  距第一支撐：-${fmt(distToS1, 2)}%`);
-
-  return lines.join('\n');
-}
-
-// 情境推演
-function buildScenarios(price, ind, signals) {
-  const { bullCount, bearCount } = signals;
-  const isBull = bullCount > bearCount;
-  const isBear = bearCount > bullCount;
-
-  const upTarget = ind.bbUpper ? fmt(ind.bbUpper) : fmt(price * 1.05);
-  const downTarget = ind.bbLower ? fmt(ind.bbLower) : fmt(price * 0.95);
-  const midTarget = ind.bbMid ? fmt(ind.bbMid) : fmt(price);
-
-  return `【情境一：看多情境（${isBull ? '⭐ 目前較可能' : '需觀察'}）】
-  觸發條件：價格守住 MA20 支撐，成交量放大，MACD 柱狀體持續擴張
-  目標價位：${upTarget}（布林上軌）
-  止損參考：跌破 MA50（${fmt(ind.sma50)}）視為多頭失守
-
-【情境二：看空情境（${isBear ? '⭐ 目前較可能' : '需觀察'}）】
-  觸發條件：跌破 MA20，成交量放大，RSI 續跌破 40
-  目標價位：${downTarget}（布林下軌）
-  止損參考：有效收復 MA20（${fmt(ind.sma20)}）視為空頭失敗
-
-【情境三：盤整整理（${!isBull && !isBear ? '⭐ 目前較可能' : '需觀察'}）】
-  觸發條件：布林帶收窄，成交量萎縮，RSI 在 45-55 之間震盪
-  整理區間：${downTarget} ~ ${upTarget}
-  等待方向：布林帶有效突破後再介入`;
-}
-
-// 主函式：產生完整分析報告
 export function generateAnalysisReport(symbolLabel, interval, indicators, supportResistance, signals) {
   if (!indicators) return '指標資料尚未載入，請稍候...';
-
-  const { price, rsi14, macd, macdSignal, macdHistogram, sma20, sma50, bbUpper, bbMid, bbLower, kdjK, kdjD, kdjJ } = indicators;
+  const { price, rsi14, macd, macdSignal, macdHistogram, sma20, sma50, bbUpper, bbMid, bbLower, kdjK, kdjD, kdjJ, atr14 } = indicators;
   const { bullCount, bearCount, neuCount } = signals;
   const total = bullCount + bearCount + neuCount || 1;
-  const trend = trendStrength(bullCount, bearCount, total);
-  const now = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+  const score = ((bullCount - bearCount) / total * 100).toFixed(0);
+  const trendLabel = bullCount > bearCount + 1 ? '📈 多頭佔優' : bearCount > bullCount + 1 ? '📉 空頭佔優' : '➡️ 多空均衡';
+  const now = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
 
-  const rsiResult = interpretRSI(rsi14);
-  const macdResult = interpretMACD(macd, macdSignal, macdHistogram);
-  const bbResult = interpretBB(price, bbUpper, bbMid, bbLower);
-  const kdjResult = interpretKDJ(kdjK, kdjD, kdjJ);
-  const maResult = interpretMA(price, sma20, sma50);
-  const srDesc = describeSR(price, supportResistance, { bbUpper, bbLower });
-  const scenarios = buildScenarios(price, indicators, signals);
+  const rsiR = interpretRSI(rsi14);
+  const macdR = interpretMACD(macd, macdSignal, macdHistogram);
+  const bbR = interpretBB(price, bbUpper, bbMid, bbLower);
+  const kdjR = interpretKDJ(kdjK, kdjD, kdjJ);
+  const maR = interpretMA(price, sma20, sma50);
+
+  const upTarget = bbUpper ? fmt(bbUpper) : fmt(price * 1.05);
+  const downTarget = bbLower ? fmt(bbLower) : fmt(price * 0.95);
 
   const lines = [];
-
-  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  lines.push(`  技術分析報告｜${symbolLabel}｜${interval}`);
-  lines.push(`  分析時間：${now}`);
-  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`╔══════════════════════════════════════════╗`);
+  lines.push(`  📊 技術分析報告｜${symbolLabel}｜${interval}`);
+  lines.push(`  🕐 ${now}`);
+  lines.push(`╚══════════════════════════════════════════╝`);
   lines.push(``);
 
-  lines.push(`▌ 一、當前趨勢判斷`);
-  lines.push(`綜合 ${total} 項技術指標評估，當前市場格局：【${trend}】`);
-  lines.push(`多頭訊號 ${bullCount} 項 / 空頭訊號 ${bearCount} 項 / 中性訊號 ${neuCount} 項`);
-  if (maResult) lines.push(maResult.text);
+  lines.push(`━━━ 一、市場概況 ━━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`當前價格：${fmt(price, 4)} USDT`);
+  lines.push(`綜合評分：${trendLabel}（多頭 ${bullCount} / 空頭 ${bearCount} / 中性 ${neuCount}）`);
+  if (atr14) lines.push(`波動幅度：ATR(14) = ${fmt(atr14, 4)}（約為價格的 ${fmt(atr14/price*100, 2)}%）`);
+  if (maR) {
+    lines.push(`均線格局：${maR.trend}`);
+    lines.push(`  ${maR.detail}`);
+  }
   lines.push(``);
 
-  lines.push(`▌ 二、支撐與壓力位`);
-  lines.push(srDesc);
+  lines.push(`━━━ 二、關鍵支撐與壓力位 ━━━━━━━━━━━━`);
+  if (supportResistance) {
+    const r1 = supportResistance.resistance[0];
+    const r2 = supportResistance.resistance[1];
+    const s1 = supportResistance.support[0];
+    const s2 = supportResistance.support[1];
+    lines.push(`🔴 壓力二（強壓）：${fmt(r2)}   距今 +${fmt((r2-price)/price*100,2)}%`);
+    lines.push(`🟠 壓力一（近壓）：${fmt(r1)}   距今 +${fmt((r1-price)/price*100,2)}%`);
+    lines.push(`─ ─ ─ 當前價格：${fmt(price, 4)} ─ ─ ─`);
+    lines.push(`🟢 支撐一（近撐）：${fmt(s1)}   距今 -${fmt((price-s1)/price*100,2)}%`);
+    lines.push(`🔵 支撐二（強撐）：${fmt(s2)}   距今 -${fmt((price-s2)/price*100,2)}%`);
+    lines.push(``);
+    lines.push(`  📌 近壓突破 → 目標看 ${upTarget}`);
+    lines.push(`  📌 近撐跌破 → 目標看 ${downTarget}`);
+  }
   lines.push(``);
 
-  lines.push(`▌ 三、動能指標交叉驗證`);
-  if (rsiResult) lines.push(`• RSI：${rsiResult.text}`);
-  if (macdResult) lines.push(`• MACD：${macdResult.text}`);
-  if (kdjResult) lines.push(`• KDJ：${kdjResult.text}`);
+  lines.push(`━━━ 三、動能指標詳解 ━━━━━━━━━━━━━━`);
+  if (rsiR) {
+    lines.push(`【RSI(14)】${rsiR.color} ${rsiR.level}`);
+    lines.push(`  ${rsiR.detail}`);
+  }
+  lines.push(``);
+  if (macdR) {
+    lines.push(`【MACD(12,26,9)】${macdR.level}`);
+    lines.push(`  ${macdR.detail}`);
+    lines.push(`  MACD：${fmt(macd)}  訊號線：${fmt(macdSignal)}  柱狀體：${fmt(macdHistogram)}`);
+  }
+  lines.push(``);
+  if (kdjR) {
+    lines.push(`【KDJ(9,3,3)】`);
+    lines.push(`  ${kdjR}`);
+  }
   lines.push(``);
 
-  lines.push(`▌ 四、布林帶與波動率`);
-  if (bbResult) lines.push(bbResult.text);
+  lines.push(`━━━ 四、布林帶與波動率 ━━━━━━━━━━━━━`);
+  if (bbR) {
+    lines.push(`帶寬狀態：${bbR.bwDesc}`);
+    lines.push(`價格位置：${bbR.posDesc}`);
+    lines.push(`上軌：${fmt(bbUpper)}  中軌：${fmt(bbMid)}  下軌：${fmt(bbLower)}`);
+  }
   lines.push(``);
 
-  lines.push(`▌ 五、情境推演`);
-  lines.push(scenarios);
+  lines.push(`━━━ 五、情境推演 ━━━━━━━━━━━━━━━━━━`);
+  const isBull = bullCount > bearCount;
+  const isBear = bearCount > bullCount;
+  lines.push(`📈 【看多情境】${isBull ? '⭐ 目前偏向此情境' : ''}`);
+  lines.push(`  觸發：站穩 MA20（${fmt(sma20)}），MACD 柱狀體持續擴張，RSI 保持 50 以上`);
+  lines.push(`  目標：${upTarget}（布林上軌）`);
+  lines.push(`  止損：跌破 MA50（${fmt(sma50)}）視為失敗`);
+  lines.push(``);
+  lines.push(`📉 【看空情境】${isBear ? '⭐ 目前偏向此情境' : ''}`);
+  lines.push(`  觸發：跌破 MA20（${fmt(sma20)}），MACD 死叉，RSI 跌破 45`);
+  lines.push(`  目標：${downTarget}（布林下軌）`);
+  lines.push(`  止損：收復 MA20 並站穩`);
+  lines.push(``);
+  lines.push(`➡️ 【盤整情境】${!isBull && !isBear ? '⭐ 目前偏向此情境' : ''}`);
+  lines.push(`  特徵：布林帶收窄，成交量萎縮，RSI 在 45-55 間震盪`);
+  lines.push(`  策略：等待突破方向確認後再進場，勿在區間中追高殺低`);
   lines.push(``);
 
-  lines.push(`▌ 六、風險提示`);
-  lines.push(`• 本報告基於純技術面分析，不考慮基本面、消息面與市場情緒`);
-  lines.push(`• 加密貨幣市場波動劇烈，技術分析僅供參考，不構成投資建議`);
-  lines.push(`• 建議搭配成交量、市場情緒指數（Fear & Greed Index）綜合判斷`);
-  lines.push(`• 任何交易請設定止損，嚴格控制倉位，不要全倉操作`);
+  lines.push(`━━━ 六、操作建議與風險提示 ━━━━━━━━━`);
+  if (isBull) {
+    lines.push(`✅ 當前技術面偏多，可考慮：`);
+    lines.push(`  • 在回測支撐位（${supportResistance ? fmt(supportResistance.support[0]) : 'MA20'}）附近分批建多`);
+    lines.push(`  • 設置止損於 MA50（${fmt(sma50)}）下方`);
+    lines.push(`  • 首要獲利目標：${upTarget}`);
+  } else if (isBear) {
+    lines.push(`⚠️ 當前技術面偏空，建議：`);
+    lines.push(`  • 避免追多，等待止跌訊號`);
+    lines.push(`  • 若持有多單，考慮在反彈至 MA20（${fmt(sma20)}）時減倉`);
+    lines.push(`  • 跌破 ${supportResistance ? fmt(supportResistance.support[1]) : '布林下軌'} 可能加速下跌`);
+  } else {
+    lines.push(`➡️ 當前多空訊號分歧，建議：`);
+    lines.push(`  • 觀望為主，等待明確突破再進場`);
+    lines.push(`  • 設定突破警示：上方 ${upTarget}，下方 ${downTarget}`);
+  }
   lines.push(``);
-  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`⚠️  風險聲明：本報告為純技術面分析，不構成投資建議。`);
+  lines.push(`    加密貨幣市場波動劇烈，請設定止損、控制倉位。`);
+  lines.push(`────────────────────────────────────────`);
 
   return lines.join('\n');
 }

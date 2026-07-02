@@ -15,30 +15,17 @@ import './App.css';
 export default function App() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [interval, setInterval] = useState('4h');
-
-  const { candles, stats, indicators, signals, supportResistance, loading, error, connected } =
-    useMarketData(symbol, interval);
-
+  const { candles, stats, indicators, signals, supportResistance, loading, error, connected } = useMarketData(symbol, interval);
   const symbolLabel = SYMBOLS.find((s) => s.value === symbol)?.label || symbol;
+  const price = indicators?.price;
 
   return (
     <div className="ta-root">
-      <Header
-        symbol={symbol}
-        setSymbol={setSymbol}
-        interval={interval}
-        setInterval={setInterval}
-        stats={stats}
-        connected={connected}
-      />
-
-      {error && (
-        <div className="error-banner">資料載入失敗：{error}（請確認網路連線或稍後再試）</div>
-      )}
-
+      <Header symbol={symbol} setSymbol={setSymbol} interval={interval} setInterval={setInterval} stats={stats} connected={connected} />
+      {error && <div className="error-banner">資料載入失敗：{error}</div>}
       <div className="main-layout">
         <div className="chart-area">
-          <div className="chart-title">K 線圖 + 技術指標 · {symbolLabel} · {interval}</div>
+          <div className="chart-title">K 線圖 · {symbolLabel} · {interval}</div>
           <div className="candle-wrap">
             {loading ? <div className="chart-loading">載入即時行情中...</div> : <CandleChart candles={candles} />}
           </div>
@@ -62,57 +49,42 @@ export default function App() {
             <div className="side-title">指標數值</div>
             <IndicatorGrid indicators={indicators} />
           </div>
-
           <div className="side-section">
             <div className="side-title">技術訊號</div>
             <SignalList signals={signals.signals} />
           </div>
-
-          {supportResistance && (
+          {supportResistance && price && (
             <div className="side-section">
               <div className="side-title">支撐 / 壓力位</div>
               <div className="sr-list">
-                <div className="sr-row">
-                  <span className="sr-label bear-text">壓力</span>
-                  <span className="sr-val">{supportResistance.resistance[1]?.toFixed(2)}</span>
-                </div>
-                <div className="sr-row">
-                  <span className="sr-label bear-text">壓力</span>
-                  <span className="sr-val">{supportResistance.resistance[0]?.toFixed(2)}</span>
-                </div>
-                <div className="sr-row">
-                  <span className="sr-label bull-text">支撐</span>
-                  <span className="sr-val">{supportResistance.support[0]?.toFixed(2)}</span>
-                </div>
-                <div className="sr-row">
-                  <span className="sr-label bull-text">支撐</span>
-                  <span className="sr-val">{supportResistance.support[1]?.toFixed(2)}</span>
-                </div>
+                {[
+                  { label: '壓力二', val: supportResistance.resistance[1], type: 'bear' },
+                  { label: '壓力一', val: supportResistance.resistance[0], type: 'bear' },
+                  { label: '支撐一', val: supportResistance.support[0], type: 'bull' },
+                  { label: '支撐二', val: supportResistance.support[1], type: 'bull' },
+                ].map(({ label, val, type }) => val && (
+                  <div className="sr-row" key={label}>
+                    <span className={`sr-label ${type === 'bear' ? 'bear-text' : 'bull-text'}`}>{label}</span>
+                    <span className="sr-val">{val.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                    <span className="sr-dist">
+                      {type === 'bear' ? `+${((val - price) / price * 100).toFixed(2)}%` : `-${((price - val) / price * 100).toFixed(2)}%`}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
-
           <div className="side-section">
             <div className="side-title">多空力道</div>
             <SentimentGauge {...signals} />
           </div>
-
           <div className="side-section ai-section">
             <OverallSignal {...signals} />
-            <AiAnalysisPanel
-              symbolLabel={symbolLabel}
-              interval={interval}
-              indicators={indicators}
-              supportResistance={supportResistance}
-              signals={signals}
-            />
+            <AiAnalysisPanel symbolLabel={symbolLabel} interval={interval} indicators={indicators} supportResistance={supportResistance} signals={signals} />
           </div>
         </div>
       </div>
-
-      <div className="disclaimer">
-        資料來源：Binance 公開行情 API。本系統僅供技術面參考，不構成投資建議，加密貨幣市場波動劇烈，請謹慎評估風險。
-      </div>
+      <div className="disclaimer">資料來源：Binance 公開行情 API｜本系統僅供技術面參考，不構成投資建議</div>
     </div>
   );
 }
