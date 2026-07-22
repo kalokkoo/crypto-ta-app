@@ -16,32 +16,27 @@ export default function CandleChart({ candles }) {
       timeScale: { borderColor: '#1E2D45', timeVisible: true, secondsVisible: false },
       autoSize: true,
     });
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#48BB78', downColor: '#FC8181',
-      borderUpColor: '#48BB78', borderDownColor: '#FC8181',
-      wickUpColor: '#48BB78', wickDownColor: '#FC8181',
-    });
-    const ma20Series = chart.addSeries(LineSeries, { color: '#F0B429', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ma50Series = chart.addSeries(LineSeries, { color: '#9F7AEA', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const bbUpperSeries = chart.addSeries(LineSeries, { color: 'rgba(59,130,246,0.5)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const bbLowerSeries = chart.addSeries(LineSeries, { color: 'rgba(59,130,246,0.5)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const candleSeries = chart.addSeries(CandlestickSeries, { upColor: '#48BB78', downColor: '#FC8181', borderUpColor: '#48BB78', borderDownColor: '#FC8181', wickUpColor: '#48BB78', wickDownColor: '#FC8181' });
+    const ma20 = chart.addSeries(LineSeries, { color: '#F0B429', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ma50 = chart.addSeries(LineSeries, { color: '#9F7AEA', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const bbU = chart.addSeries(LineSeries, { color: 'rgba(59,130,246,0.5)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const bbL = chart.addSeries(LineSeries, { color: 'rgba(59,130,246,0.5)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     chartRef.current = chart;
-    seriesRef.current = { candleSeries, ma20Series, ma50Series, bbUpperSeries, bbLowerSeries };
+    seriesRef.current = { candleSeries, ma20, ma50, bbU, bbL };
     return () => chart.remove();
   }, []);
 
   useEffect(() => {
-    if (!candles || candles.length === 0 || !seriesRef.current.candleSeries) return;
-    const { candleSeries, ma20Series, ma50Series, bbUpperSeries, bbLowerSeries } = seriesRef.current;
-    candleSeries.setData(candles.map((c) => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
-    const closes = candles.map((c) => c.close);
-    const sma20Arr = sma(closes, 20);
-    const sma50Arr = sma(closes, 50);
+    if (!candles?.length || !seriesRef.current.candleSeries) return;
+    const { candleSeries, ma20, ma50, bbU, bbL } = seriesRef.current;
+    candleSeries.setData(candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
+    const closes = candles.map(c => c.close);
+    const s20 = sma(closes, 20), s50 = sma(closes, 50);
     const bb = bollingerBands(closes, 20);
-    ma20Series.setData(candles.map((c, i) => ({ time: c.time, value: sma20Arr[i] })).filter((d) => d.value !== null));
-    ma50Series.setData(candles.map((c, i) => ({ time: c.time, value: sma50Arr[i] })).filter((d) => d.value !== null));
-    bbUpperSeries.setData(candles.map((c, i) => ({ time: c.time, value: bb.upper[i] })).filter((d) => d.value !== null));
-    bbLowerSeries.setData(candles.map((c, i) => ({ time: c.time, value: bb.lower[i] })).filter((d) => d.value !== null));
+    ma20.setData(candles.map((c,i) => ({ time: c.time, value: s20[i] })).filter(d => d.value !== null));
+    ma50.setData(candles.map((c,i) => ({ time: c.time, value: s50[i] })).filter(d => d.value !== null));
+    bbU.setData(candles.map((c,i) => ({ time: c.time, value: bb.upper[i] })).filter(d => d.value !== null));
+    bbL.setData(candles.map((c,i) => ({ time: c.time, value: bb.lower[i] })).filter(d => d.value !== null));
     chartRef.current?.timeScale().fitContent();
   }, [candles]);
 

@@ -14,21 +14,17 @@ export default function RsiChart({ candles }) {
       grid: { vertLines: { color: 'rgba(30,45,69,0.3)' }, horzLines: { color: 'rgba(30,45,69,0.3)' } },
       rightPriceScale: { borderColor: '#1E2D45' },
       timeScale: { borderColor: '#1E2D45', visible: false },
-      autoSize: true,
-      handleScroll: false,
-      handleScale: false,
+      autoSize: true, handleScroll: false, handleScale: false,
     });
-    const line = chart.addSeries(LineSeries, { color: '#9F7AEA', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true });
+    lineRef.current = chart.addSeries(LineSeries, { color: '#9F7AEA', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true });
     chartRef.current = chart;
-    lineRef.current = line;
     return () => chart.remove();
   }, []);
 
   useEffect(() => {
-    if (!candles || candles.length === 0 || !lineRef.current) return;
-    const closes = candles.map((c) => c.close);
-    const rsiArr = rsi(closes, 14);
-    lineRef.current.setData(candles.map((c, i) => ({ time: c.time, value: rsiArr[i] })).filter((d) => d.value !== null));
+    if (!candles?.length || !lineRef.current) return;
+    const rsiArr = rsi(candles.map(c => c.close), 14);
+    lineRef.current.setData(candles.map((c,i) => ({ time: c.time, value: rsiArr[i] })).filter(d => d.value !== null));
     chartRef.current?.timeScale().fitContent();
   }, [candles]);
 
