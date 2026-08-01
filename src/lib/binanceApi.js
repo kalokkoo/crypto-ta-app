@@ -111,21 +111,25 @@ export async function fetchFearGreed() {
   } catch { return null; }
 }
 
-// 多幣 RSI 用於計算市場平均 RSI 與山寨季
 export async function fetchMarketRSI() {
   const alts = ['ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','AVAXUSDT','DOTUSDT','LINKUSDT','MATICUSDT','UNIUSDT'];
+  const symbolsToFetch = [{ sym: 'BTCUSDT', label: 'BTC' }, ...alts.map(s => ({ sym: s, label: s.replace('USDT', '') }))];
+  const results = [];
+  
   try {
-    const results = await Promise.all(
-      [{ sym: 'BTCUSDT', label: 'BTC' }, ...alts.map(s => ({ sym: s, label: s.replace('USDT', '') }))].map(async ({ sym, label }) => {
-        const res = await fetch(`${REST}/klines?symbol=${sym}&interval=1d&limit=16`);
-        if (!res.ok) return null;
+    for (const { sym, label } of symbolsToFetch) {
+      const res = await fetch(`${REST}/klines?symbol=${sym}&interval=1d&limit=16`);
+      if (res.ok) {
         const candles = await res.json();
         const closes = candles.map(c => +c[4]);
         const rsiVal = calcRSISimple(closes, 14);
         const change30d = closes.length >= 2 ? ((closes[closes.length - 1] - closes[0]) / closes[0]) * 100 : 0;
-        return { symbol: label, rsi: rsiVal, change30d };
-      })
-    );
+        results.push({ symbol: label, rsi: rsiVal, change30d });
+      }
+      // 添加 100ms 延遲避免觸發幣安 IP 限制
+      await new Promise(r => setTimeout(r, 100));
+    }
+    
     const valid = results.filter(Boolean);
     const avgRSI = valid.reduce((s, v) => s + v.rsi, 0) / valid.length;
     const btc = valid.find(v => v.symbol === 'BTC');

@@ -29,8 +29,23 @@ export function useMarketData(symbol, interval) {
     setLoading(true);
     setError(null);
     setConnected(false);
-    if (klineWs.current) klineWs.current.close();
-    if (tickerWs.current) tickerWs.current.close();
+
+    const cleanupSockets = () => {
+      if (klineWs.current) {
+        klineWs.current.onopen = null;
+        klineWs.current.onclose = null;
+        klineWs.current.onmessage = null;
+        klineWs.current.close();
+        klineWs.current = null;
+      }
+      if (tickerWs.current) {
+        tickerWs.current.onmessage = null;
+        tickerWs.current.close();
+        tickerWs.current = null;
+      }
+    };
+
+    cleanupSockets();
 
     async function init() {
       try {
@@ -79,10 +94,10 @@ export function useMarketData(symbol, interval) {
       }
     }
     init();
+    
     return () => {
       cancelled = true;
-      if (klineWs.current) klineWs.current.close();
-      if (tickerWs.current) tickerWs.current.close();
+      cleanupSockets();
     };
   }, [symbol, interval, recompute]);
 
